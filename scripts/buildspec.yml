@@ -1,0 +1,58 @@
+# ---------------------------------------------------- #
+# scripts/buildspec.yml
+# ---------------------------------------------------- #
+# This file tells AWS CodeBuild how to build and deploy our project
+# It runs in sequence: pre_build → build → post_build
+
+version: 0.2  # BuildSpec file format version
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      # Get ECR login token and pipe to docker login
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI=$ECR_REPO_URL  # Set repo URL from environment
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:=latest}  # Use commit hash or 'latest'
+      
+  build:
+    commands:
+      - echo Build started on `date`
+      # Build training container and run it
+      - echo Building training container...
+      - docker build -t training -f docker/Dockerfile.train .  # Build training image
+      - echo Running training...
+      - docker run --name trainer training  # Run training (creates model)
+      # Copy model from container
+      - docker cp trainer:/tmp/model.pkl ./model.pkl  # Extract model file from container
+      - docker cp trainer:/tmp/model.json ./model.json  # Extract JSON version too
+      # Upload model to S3
+      - echo Uploading model to S3...
+      - aws s3 cp model.pkl s3://$S3_BUCKET/models/model.pkl  # Upload binary model
+      - aws s3 cp model.json s3://$S3_BUCKET/models/model.json  # Upload JSON model
+      # Build Lambda container
+      - echo Building Lambda container...
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG -f docker/Dockerfile.lambda .  # Build inference image
+      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:latest  # Tag as latest
+      
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing Docker images...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG  # Push versioned image to ECR
+      - docker push $REPOSITORY_URI:latest      # Push latest tag to ECR
+      # Update Lambda function with better error handling
+      - echo Updating Lambda function...
+      - |
+        FUNCTION_NAME=$(aws lambda list-functions --query "Functions[?starts_with(FunctionName, 'mlops-model-api-')].FunctionName" --output text)
+        if [ ! -z "$FUNCTION_NAME" ]; then
+          echo "Found Lambda function: $FUNCTION_NAME"
+          echo "Updating with image: $REPOSITORY_URI:latest"
+          aws lambda update-function-code --function-name $FUNCTION_NAME --image-uri $REPOSITORY_URI:latest
+          echo "Waiting for Lambda function to update..."
+          aws lambda wait function-updated --function-name $FUNCTION_NAME
+          echo "Lambda function updated successfully!"
+        else
+          echo "Lambda function not found (this is normal on first deployment)"
+          echo "Lambda will use the new image when created by Terraform"
+        fi
