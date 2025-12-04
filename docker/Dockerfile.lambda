@@ -1,0 +1,21 @@
+# ---------------------------------------------------- #
+# docker/Dockerfile.lambda
+# ---------------------------------------------------- #
+
+# This creates a container image specifically for AWS Lambda
+# It packages our inference code with all dependencies (separate from training container)
+
+# Official AWS Lambda Python base image
+FROM public.ecr.aws/lambda/python:3.9  
+
+# Install dependencies
+RUN pip install numpy boto3  
+    # Installs Python packages needed for inference
+
+# Copy inference code
+COPY src/predict.py ${LAMBDA_TASK_ROOT}/  
+    # Lambda expects code in this directory
+
+# Set handler
+CMD ["predict.lambda_handler"]  
+    # Tells Lambda which function to call (file.function_name)

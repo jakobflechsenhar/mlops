@@ -1,0 +1,7 @@
+# ---------------------------------------------------- #
+# requirements.txt
+# ---------------------------------------------------- #
+
+numpy==1.26.4    # for mathematical operations in train.py
+boto3==1.28.0    # for AWS SDK - talking to S3 in predict.py
+pytest==7.4.0    # for running tests

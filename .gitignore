@@ -1,0 +1,27 @@
+# ---------------------------------------------------- #
+# .gitignore
+# ---------------------------------------------------- #
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars  # IMPORTANT: Don't commit tokens!
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+
+# Models
+models/*.pkl
+models/*.json
+
+# AWS
+.aws/
+
+# Local
+.DS_Store
+*.log

@@ -1,0 +1,24 @@
+# ---------------------------------------------------- #
+# docker/Dockerfile.train
+# ---------------------------------------------------- #
+
+# This creates a container for training our model
+# Separate from Lambda container - only used during build process
+
+# Lightweight Python image
+FROM python:3.9-slim  
+
+# Set working directory inside container
+WORKDIR /app
+
+# Install minimal dependencies
+RUN pip install numpy  
+    # Only need numpy for training
+
+# Copy training code
+COPY src/train.py /app/  
+    # Copy our training script into container
+
+# Run training
+CMD ["python", "train.py"]  
+    # Command to run when container starts
