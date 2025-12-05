@@ -417,4 +417,99 @@ resource "aws_iam_role_policy" "codepipeline_policy" {
     ]
   })
 }
+
+
+# ===== S3 EVENT TRIGGER FOR AUTOMATIC RETRAINING =====
+
+# Lambda function to trigger CodeBuild when data is uploaded
+resource "aws_lambda_function" "data_trigger" {
+  filename         = "../lambda_trigger.zip"
+  function_name    = "mlops-data-trigger-${random_string.suffix.result}"
+  role            = aws_iam_role.trigger_lambda_role.arn
+  handler         = "index.handler"
+  runtime         = "python3.9"
+  timeout         = 60
+
+  environment {
+    variables = {
+      CODEBUILD_PROJECT = aws_codebuild_project.mlops_build.name
+    }
+  }
+
+  depends_on = [aws_iam_role_policy.trigger_lambda_policy]
+}
+
+# S3 bucket notification
+resource "aws_s3_bucket_notification" "data_upload_trigger" {
+  bucket = aws_s3_bucket.mlops_bucket.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.data_trigger.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "new-data/"
+  }
+
+  depends_on = [aws_lambda_permission.allow_bucket]
+}
+
+# Permission for S3 to invoke Lambda
+resource "aws_lambda_permission" "allow_bucket" {
+  statement_id  = "AllowExecutionFromS3Bucket"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.data_trigger.arn
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.mlops_bucket.arn
+}
+
+# IAM role for trigger Lambda
+resource "aws_iam_role" "trigger_lambda_role" {
+  name = "mlops-trigger-lambda-role-${random_string.suffix.result}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      }
+    }]
+  })
+}
+
+# IAM policy for trigger Lambda
+resource "aws_iam_role_policy" "trigger_lambda_policy" {
+  name = "mlops-trigger-lambda-policy"
+  role = aws_iam_role.trigger_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "codebuild:StartBuild"
+        ]
+        Resource = aws_codebuild_project.mlops_build.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ]
+        Resource = "${aws_s3_bucket.mlops_bucket.arn}/*"
+      }
+    ]
+  })
+}
 # ---------------------------------------------------- #

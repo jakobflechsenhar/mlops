@@ -5,26 +5,34 @@
 ```
 MLOps/
 ├── src/
-│   ├── train.py          # Trains tiny model
-│   ├── predict.py        # Inference code for Lambda
-│   └── utils.py          # Helper functions
+│   ├── train.py           # Trains model (reads from S3 data)
+│   └── predict.py         # Inference code for Lambda
 ├── terraform/
-│   ├── main.tf           # Main Terraform config
-│   ├── variables.tf      # Variable definitions
-│   ├── outputs.tf        # Output values
-│   └── terraform.tfvars  # Variable values
+│   ├── main.tf            # Includes Lambda trigger + S3 notifications
+│   ├── variables.tf       # Variable definitions
+│   ├── outputs.tf         # Output values
+│   └── terraform.tfvars   # Variable values
 ├── docker/
-│   ├── Dockerfile.train  # Training container
-│   └── Dockerfile.lambda # Lambda container
+│   ├── Dockerfile.train   # Training container
+│   └── Dockerfile.lambda  # Lambda container
 ├── scripts/
-│   ├── buildspec.yml     # CodeBuild instructions
-│   ├── deploy.sh         # Deployment helper
-│   └── cleanup.sh        # Cleanup script
-├── tests/
-│   └── test_model.py     # Basic tests
+│   ├── buildspec.yml      # CodeBuild instructions
+│   └── create_trigger_lambda.py  # Creates Lambda trigger
 ├── data/
-│   └── sample.csv        # Tiny dataset
-├── requirements.txt      # Python dependencies
-├── Makefile              # ???? Command shortcuts ????
-└── README.md             # Documentation
+│   └── sample.csv         # Initial dataset
+├── lambda_trigger.zip     # Lambda function for S3 events
+├── requirements.txt       # Python dependencies
+├── Makefile               # Command shortcuts
+└── README.md
+
+S3 Bucket Structure:
+s3://mlops-bucket/
+├── models/                # Trained models
+│   ├── model.pkl
+│   └── model.json
+├── data/                  # Training data
+│   └── training_data.json
+└── new-data/              # Drop zone for new data
+    └── *.csv              # Triggers retraining
+
 ```
