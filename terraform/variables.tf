@@ -17,16 +17,10 @@ variable "project_name" {
   default     = "MLOps"
 }
 
-variable "github_token" {
-  description = "GitHub personal access token for CodePipeline"
-  type        = string
-  sensitive   = true
-}
-
 variable "github_owner" {
   description = "GitHub username or organization"
   type        = string
-  default     = "jakobflechsenhar"
+  default     = "username"
 }
 
 variable "github_repo" {

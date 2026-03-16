@@ -306,6 +306,27 @@ data "aws_caller_identity" "current" {}  # Provides account_id, arn, user_id
 # ---------------------------------------------------- #
 # ===== CODEPIPELINE FOR FULL CI/CD =====
 
+# ---------------------------------------------------- #
+# GitHub Connection via AWS CodeStar Connections
+#
+# WHY: The old GitHub v1 provider used an OAuth token (OAuthToken = var.github_token).
+# That token was stored in plaintext in the Terraform state file — meaning if the
+# state file was ever committed to git or an S3 bucket was misconfigured, the token
+# would be exposed and an attacker could access your GitHub account.
+#
+# CodeStar Connections is the secure alternative:
+# - AWS manages the OAuth handshake internally; the token is never in your state file
+# - The connection ARN is all Terraform stores — useless to an attacker on its own
+# - One-time manual step required: after `terraform apply`, go to AWS Console →
+#   CodePipeline → Settings → Connections, find "mlops-github-connection",
+#   and click "Update pending connection" to authorize it via GitHub OAuth.
+#   You only need to do this once.
+# ---------------------------------------------------- #
+resource "aws_codestarconnections_connection" "github" {
+  name          = "mlops-github-connection"
+  provider_type = "GitHub"
+}
+
 # S3 Bucket for CodePipeline artifacts
 resource "aws_s3_bucket" "pipeline_artifacts" {
   bucket = "mlops-pipeline-artifacts-${random_string.suffix.result}"
@@ -336,16 +357,15 @@ resource "aws_codepipeline" "mlops_pipeline" {
     action {
       name             = "Source"
       category         = "Source"
-      owner            = "ThirdParty"
-      provider         = "GitHub"
+      owner            = "AWS"
+      provider         = "CodeStarSourceConnection"   # Uses AWS-managed connection — no token in state
       version          = "1"
       output_artifacts = ["source_output"]
 
       configuration = {
-        Owner      = var.github_owner
-        Repo       = var.github_repo
-        Branch     = "main"
-        OAuthToken = var.github_token
+        ConnectionArn    = aws_codestarconnections_connection.github.arn
+        FullRepositoryId = "${var.github_owner}/${var.github_repo}"
+        BranchName       = "main"
       }
     }
   }
@@ -413,6 +433,12 @@ resource "aws_iam_role_policy" "codepipeline_policy" {
           "codebuild:StartBuild"
         ]
         Resource = aws_codebuild_project.mlops_build.arn
+      },
+      {
+        # Required for CodeStar Connections source action
+        Effect   = "Allow"
+        Action   = ["codestar-connections:UseConnection"]
+        Resource = aws_codestarconnections_connection.github.arn
       }
     ]
   })
