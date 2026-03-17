@@ -20,7 +20,7 @@ variable "project_name" {
 variable "github_owner" {
   description = "GitHub username or organization"
   type        = string
-  default     = "username"
+  default     = "jakobflechsenhar"
 }
 
 variable "github_repo" {
